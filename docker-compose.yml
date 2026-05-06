@@ -1,0 +1,226 @@
+x-healthsys-api-env: &healthsys-api-env
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/healthsys
+  SPRING_DATASOURCE_USERNAME: postgres
+  SPRING_DATASOURCE_PASSWORD: postgres
+  HEALTHSYS_CACHE_TYPE: redis
+  HEALTHSYS_REDIS_HOST: redis
+  HEALTHSYS_REDIS_PORT: 6379
+  HEALTHSYS_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  HEALTHSYS_KAFKA_TRIAGE_TOPIC: triage.created
+  HEALTHSYS_JWT_SECRET: healthsys-secret-key-healthsys-secret-key-2026
+  SERVER_PORT: 8080
+
+x-healthsys-api-common: &healthsys-api-common
+  build:
+    context: ./backend/healthsys-api
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+    kafka:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: healthsys-postgres
+    environment:
+      POSTGRES_DB: healthsys
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d healthsys"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: healthsys-redis
+    ports:
+      - "6379:6379"
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    container_name: healthsys-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: healthsys-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  user-service:
+    <<: *healthsys-api-common
+    container_name: healthsys-user-service
+    environment:
+      <<: *healthsys-api-env
+      SPRING_APPLICATION_NAME: healthsys-user-service
+      HEALTHSYS_SERVICE_ROLE: user
+      HEALTHSYS_KAFKA_ENABLED: "false"
+      HEALTHSYS_KAFKA_PUBLISHER_ENABLED: "false"
+      HEALTHSYS_KAFKA_CONSUMER_ENABLED: "false"
+
+  patient-service:
+    <<: *healthsys-api-common
+    container_name: healthsys-patient-service
+    environment:
+      <<: *healthsys-api-env
+      SPRING_APPLICATION_NAME: healthsys-patient-service
+      HEALTHSYS_SERVICE_ROLE: patient
+      HEALTHSYS_KAFKA_ENABLED: "false"
+      HEALTHSYS_KAFKA_PUBLISHER_ENABLED: "false"
+      HEALTHSYS_KAFKA_CONSUMER_ENABLED: "false"
+
+  medical-record-service:
+    <<: *healthsys-api-common
+    container_name: healthsys-medical-record-service
+    environment:
+      <<: *healthsys-api-env
+      SPRING_APPLICATION_NAME: healthsys-medical-record-service
+      HEALTHSYS_SERVICE_ROLE: medical-record
+      HEALTHSYS_KAFKA_ENABLED: "false"
+      HEALTHSYS_KAFKA_PUBLISHER_ENABLED: "false"
+      HEALTHSYS_KAFKA_CONSUMER_ENABLED: "false"
+
+  triage-service:
+    <<: *healthsys-api-common
+    container_name: healthsys-triage-service
+    environment:
+      <<: *healthsys-api-env
+      SPRING_APPLICATION_NAME: healthsys-triage-service
+      HEALTHSYS_SERVICE_ROLE: triage
+      HEALTHSYS_KAFKA_ENABLED: "true"
+      HEALTHSYS_KAFKA_PUBLISHER_ENABLED: "true"
+      HEALTHSYS_KAFKA_CONSUMER_ENABLED: "false"
+
+  notification-service:
+    <<: *healthsys-api-common
+    container_name: healthsys-notification-service
+    environment:
+      <<: *healthsys-api-env
+      SPRING_APPLICATION_NAME: healthsys-notification-service
+      HEALTHSYS_SERVICE_ROLE: notification
+      HEALTHSYS_KAFKA_ENABLED: "true"
+      HEALTHSYS_KAFKA_PUBLISHER_ENABLED: "false"
+      HEALTHSYS_KAFKA_CONSUMER_ENABLED: "true"
+
+  dashboard-service:
+    <<: *healthsys-api-common
+    container_name: healthsys-dashboard-service
+    environment:
+      <<: *healthsys-api-env
+      SPRING_APPLICATION_NAME: healthsys-dashboard-service
+      HEALTHSYS_SERVICE_ROLE: dashboard
+      HEALTHSYS_KAFKA_ENABLED: "false"
+      HEALTHSYS_KAFKA_PUBLISHER_ENABLED: "false"
+      HEALTHSYS_KAFKA_CONSUMER_ENABLED: "false"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8080
+    container_name: healthsys-frontend
+    depends_on:
+      - user-service
+      - patient-service
+      - medical-record-service
+      - triage-service
+      - notification-service
+      - dashboard-service
+    ports:
+      - "5173:80"
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    container_name: healthsys-api-gateway
+    depends_on:
+      - frontend
+      - user-service
+      - patient-service
+      - medical-record-service
+      - triage-service
+      - notification-service
+      - dashboard-service
+    volumes:
+      - ./infra/api-gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: healthsys-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: healthsys-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: healthsys-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.0
+    container_name: healthsys-logstash
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./infra/elk/logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    ports:
+      - "5000:5000"
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.0
+    container_name: healthsys-kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+
+volumes:
+  postgres_data:

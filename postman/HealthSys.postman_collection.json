@@ -1,0 +1,177 @@
+{
+  "info": {
+    "_postman_id": "b2d14f8d-04fb-4e50-8b1d-9f0d4a4f0e7d",
+    "name": "HealthSys",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "patientId", "value": "1" },
+    { "key": "recordId", "value": "1" },
+    { "key": "triageId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Administrador Master\",\n  \"email\": \"admin@healthsys.com\",\n  \"senha\": \"123456\",\n  \"perfil\": \"ADMIN\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@healthsys.com\",\n  \"senha\": \"123456\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/users"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Patients",
+      "item": [
+        {
+          "name": "Create Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/patients",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Joao da Silva\",\n  \"dataNascimento\": \"1999-05-10\",\n  \"sexo\": \"MASCULINO\",\n  \"telefone\": \"85999999999\",\n  \"email\": \"joao@email.com\",\n  \"endereco\": \"Rua Central, 100\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Patients",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/patients"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Medical Records",
+      "item": [
+        {
+          "name": "Create Record",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/medical-records",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pacienteId\": {{patientId}},\n  \"historicoClinico\": \"Paciente sem comorbidades.\",\n  \"observacoesGerais\": \"Sem observacoes iniciais.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Add Consulta",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/medical-records/{{recordId}}/consultas",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dataConsulta\": \"2026-04-16T10:30:00\",\n  \"descricao\": \"Consulta inicial\",\n  \"conduta\": \"Repouso e observacao\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Triage",
+      "item": [
+        {
+          "name": "Create Triage",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/triages",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pacienteId\": {{patientId}},\n  \"sintomas\": \"Febre e tosse\",\n  \"nivelRisco\": \"MEDIO\",\n  \"status\": \"ABERTA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Triage Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{baseUrl}}/api/triages/{{triageId}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"FINALIZADA\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications and Dashboard",
+      "item": [
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/notifications"
+          }
+        },
+        {
+          "name": "Dashboard Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/api/dashboard/summary"
+          }
+        }
+      ]
+    }
+  ]
+}

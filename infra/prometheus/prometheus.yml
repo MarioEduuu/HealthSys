@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - prometheus:9090
+
+  - job_name: healthsys-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - user-service:8080
+          - patient-service:8080
+          - medical-record-service:8080
+          - triage-service:8080
+          - notification-service:8080
+          - dashboard-service:8080
